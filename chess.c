@@ -30,6 +30,7 @@ char* array[10][10];
 char* copyarray;
 char instruct = 1;//回放指令
 char saving = 1;//儲存指令
+char again;//是否毀棋
 int xi,yi;//要移動的棋子
 int xj,yj;//移動的目標位置
 int decision;//新局還是舊局
@@ -39,6 +40,7 @@ bool gameOverSign = 1;//遊戲是否結束，0結束
 bool functionOverSign = 1;//遊戲是否結束，0結束
 bool restart = 0;
 bool reprint = 0;
+bool restartagain = 0;
 //生成棋盤
 void chessboardBuilding();
 //打印棋盤
@@ -51,6 +53,8 @@ void readMove();
 void saveMove();
 //f或b移動
 void printMove();
+//是否毀棋
+void againmove();
 //紅棋移動
 void redMove();
 //黑棋移動
@@ -60,6 +64,7 @@ void rulesOfAllKindsOfChessPieces();
 //判斷遊戲結束
 void isGameOver();
 
+int hope=0;
 int turns;
 int now;
 int c=0;
@@ -69,16 +74,21 @@ ev_timer timeout_watcherx;
 ev_timer timeout_watchery;
 
 #define MAXSTACK 100 /*定義最大堆疊容量*/
+typedef struct chess_info chess_info;
+struct chess_info{
 int stackfront1[MAXSTACK];  //堆疊的陣列宣告 
 int stackfront2[MAXSTACK];  //堆疊的陣列宣告 
 int stackend1[MAXSTACK];  //堆疊的陣列宣告 
 int stackend2[MAXSTACK];  //堆疊的陣列宣告 
 char *stackword[MAXSTACK];  //堆疊的陣列宣告 
+} one ;
 int top=-1;		//堆疊的頂端
+
 int printstep = 0; 
 int isEmpty();
 void push(int,int,int,int,char*); 
-int pop();
+chess_info pop();
+
 
 
 /*判斷是否為空堆疊*/
@@ -95,26 +105,28 @@ void push(int data1,int data2,int data3,int data4,char* copyarray){
 		printf("堆疊已滿,無法再加入\n");	
 	}else{
 		top++;
-		stackfront1[top]=data1;
-        stackfront2[top]=data2;
-        stackend1[top]=data3;
-        stackend2[top]=data4;
-        stackword[top]=copyarray;
+		one.stackfront1[top]=data1;
+        one.stackfront2[top]=data2;
+        one.stackend1[top]=data3;
+        one.stackend2[top]=data4;
+        one.stackword[top]=copyarray;
 	}
  
 } 
 /*從堆疊取出資料*/
-int pop(){
+chess_info pop(){
 	int dataout1,dataout2,dataout3,dataout4;
+    char* dataoutcopy;
 	if(isEmpty()){
 		printf("堆疊已空\n");
 	}else{
-        dataout1=stackfront1[top];
-        dataout2=stackfront2[top];
-        dataout3=stackend1[top];
-        dataout4=stackend2[top];
+        dataout1=one.stackfront1[top];
+        dataout2=one.stackfront2[top];
+        dataout3=one.stackend1[top];
+        dataout4=one.stackend2[top];
+        dataoutcopy=one.stackword[top];
 		top--;
-		return dataout1,dataout2,dataout3,dataout4; 
+		return one; 
 	}
 }
 
@@ -140,23 +152,23 @@ static void timeout_cbx (EV_P_ ev_timer *w, int revents){
     else{
         printf("The time of player x use: ");printf("%d\n",(int)ev_now(loop)-now-indep);
         indep=(int)ev_now(loop)-now;
-        printf("cby\n");
-        printf("indep: %d\n",indep);
+        //printf("cby\n");
+        //printf("indep: %d\n",indep);
     }
-    printf("cbx\n");
+    //printf("cbx\n");
     ev_timer_stop (loop, &timeout_watcherx);
     ev_break(loop, EVBREAK_ONE);
-    printf("InCBX,turns++\n\n\n");
+    //printf("InCBX,turns++\n\n\n");
     turns=-1;
 }
 static void timeout_cby (EV_P_ ev_timer *w, int revents){
     printf("The time of player y use: ");printf("%d\n",(int)ev_now(loop)-now-indep);
     indep=(int)ev_now(loop)-now;
     printf("indep: %d\n",indep);
-    printf("cby\n");
+    //printf("cby\n");
     ev_timer_stop (loop, &timeout_watchery);
     ev_break(loop, EVBREAK_ONE);
-    printf("InCBY,turns++\n\n\n");
+    //printf("InCBY,turns++\n\n\n");
     turns=1;
 }
 //**************************主函數******************************
@@ -191,11 +203,12 @@ int main()
                     /*ev_timer_start(loop, &timeout_watchery);//總時間在哪*/
                     printf("您將紅棋從%d %d到%d %d\n",yi,xi,yj,xj);
                     push(xi,yi,xj,yj,copyarray);
-                    printf("top = %d \n",top);
+                    //printf("top = %d \n",top);
+                    saveMove();
+                    againmove(); 
+                        turn = (restartagain) ? (turn*-1) : turn;
                      
-                        
-                     saveMove();
-
+                    isStandard = 1;
                     }
                     ev_timer_start(loop, &timeout_watchery);//總時間在哪
                 break;
@@ -207,10 +220,12 @@ int main()
                     /*ev_timer_start(loop, &timeout_watcherx);*/
                     printf("您將藍棋從%d %d到%d %d\n",yi,xi,yj,xj);
                     push(xi,yi,xj,yj,copyarray);
-                    printf("top = %d \n",top);
-                    
-                       
+                    //printf("top = %d \n",top);
                     saveMove();
+                    againmove(); 
+                        turn = (restartagain) ? (turn*-1) : turn;
+                       
+                    isStandard = 1;
                     } 
                     ev_timer_start(loop, &timeout_watcherx);
                 break;
@@ -253,6 +268,31 @@ int main()
 //*************************自定義函數*****************************
 
 
+//毀棋
+void againmove()
+{  
+   printf("是否毀棋:y/n\n");
+    scanf(" %c",&again);
+    getchar();
+    if(again == 'y'){
+        restartagain =1;
+        xi = one.stackend1[top];
+        yi = one.stackend2[top];
+        xj = one.stackfront1[top];
+        yj = one.stackfront2[top];
+        //char *copy1 = array[xj][yj];
+        array[xj][yj] = array[xi][yi];
+        array[xi][yi] = one.stackword[top];
+        printChessboard();
+    }    
+    else if(again == 'n'){
+            restartagain =0;
+    }
+    else {printf("無此指令，視為取消\n");
+        restartagain =0;}
+}
+
+
 //讀檔
 void readMove()
 {  
@@ -263,10 +303,10 @@ void readMove()
         
         while(!feof(fp_r)) {
         top = top + 1;    
-        stackword[top] = malloc(100); 
+        one.stackword[top] = malloc(100); 
         
-        fscanf(fp_r, "%d %d %d %d %s\n", &stackfront1[top],&stackfront2[top],&stackend1[top],&stackend2[top],*&stackword[top]);
-        printf("stackword = %s \n",stackword[top]);
+        fscanf(fp_r, "%d %d %d %d %s\n", &one.stackfront1[top],&one.stackfront2[top],&one.stackend1[top],&one.stackend2[top],*&one.stackword[top]);
+        printf("stackword = %s \n",one.stackword[top]);
         }
         printf("top = %d \n",top);
         printf("讀檔成功。\n");
@@ -289,7 +329,7 @@ void saveMove()
         return -1;*/
         
         for(int i = 0 ; i < top + 1 ; i++) {
-        fprintf(fp_w, "%d %d %d %d %s\n", stackfront1[i],stackfront2[i],stackend1[i],stackend2[i],stackword[i]);
+        fprintf(fp_w, "%d %d %d %d %s\n", one.stackfront1[i],one.stackfront2[i],one.stackend1[i],one.stackend2[i],one.stackword[i]);
         }
         printf("存檔成功。\n");
         fclose(fp_w);
@@ -302,31 +342,43 @@ void saveMove()
 void printMove()
 {  
     if(instruct == 'f' && printstep < top + 1){
-        printf("請f。\n");
-        xi = stackfront1[printstep];
-        yi = stackfront2[printstep];
-        xj = stackend1[printstep];
-        yj = stackend2[printstep];
-        rulesOfAllKindsOfChessPieces();
+        //printf("請f。\n");
+        xi = one.stackfront1[printstep];
+        yi = one.stackfront2[printstep];
+        xj = one.stackend1[printstep];
+        yj = one.stackend2[printstep];
+        
+        if(array[xi][yi] != CROSS){
+            array[xj][yj] = array[xi][yi];
+            array[xi][yi] = CROSS; }
+        else{
+            array[xj][yj] = array[xi][yi];
+            array[xi][yi] = one.stackword[printstep];}
+
         printChessboard();
+        printf("您將棋從%d %d到%d %d\n",yi,xi,yj,xj);
         printstep = printstep + 1;
+        
     }
     else if(instruct == 'b' && printstep > 0){
-        printf("請b。\n");
+        //printf("請b。\n");
         printstep = printstep - 1;
-        xi = stackend1[printstep];
-        yi = stackend2[printstep];
-        xj = stackfront1[printstep];
-        yj = stackfront2[printstep];
-        char *copy = array[xj][yj];
+        xi = one.stackend1[printstep];
+        yi = one.stackend2[printstep];
+        xj = one.stackfront1[printstep];
+        yj = one.stackfront2[printstep];
+        
         array[xj][yj] = array[xi][yi];
-        array[xi][yi] = stackword[printstep];
+        array[xi][yi] = one.stackword[printstep];
         printChessboard();
+        isStandard = 1;
         
     }
         
     else {
-        printf("存檔已結束\n");
+        if( printstep == top+1)
+            printf("存檔已結束\n");
+
         printf("請重新輸入小寫f或b。\n");
         }
 }
@@ -414,7 +466,7 @@ void redMove()
     scanf("%d %d",&yj,&xj);
 
     copyarray = array[xj][yj];
-    if (yi != 0 && xi != 0 && yj != 0 && xj != 0 && (redOrBlack(xi, yi) == 1)){
+    if (yi != 0 && xi != 0 && yj != 0 && xj != 0 && yi <= 9 && xi <= 9 && yj <= 9 && xj <= 9 && (redOrBlack(xi, yi) == 1)){
         
         rulesOfAllKindsOfChessPieces();
         printChessboard();
@@ -436,7 +488,7 @@ void blackMove()
     printf("[藍棋]請輸入你要放置的位置(行+空白鍵+列):\n");
     scanf("%d %d",&yj,&xj);
     copyarray = array[xj][yj];
-    if (yi != 0 && xi != 0 && yj != 0 && xj != 0 && (redOrBlack(xi, yi) == -1)){
+    if (yi != 0 && xi != 0 && yj != 0 && xj != 0 && yi <= 9 && xi <= 9 && yj <= 9 && xj <= 9 && (redOrBlack(xi, yi) == -1)){
         
         rulesOfAllKindsOfChessPieces();
         printChessboard();
@@ -684,7 +736,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }
     
-//R（馬）----------------------------------------
+//R（桂）----------------------------------------
     else if (array[xi][yi] == R(桂))
     {
         if ((redOrBlack(xj, yj) != 1) && (  (xj == xi+2 && yj == yi-1 &&redOrBlack(xi+1, yi) == 0) || (xj == xi+2 && yj == yi+1 &&redOrBlack(xi+1, yi) == 0)))
@@ -698,7 +750,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }
     
-//B（馬）----------------------------------------
+//B（桂）----------------------------------------
     else if (array[xi][yi] == B(桂))
     {
         if ((redOrBlack(xj, yj) != -1) && ((xj == xi-2 && yj == yi-1 &&redOrBlack(xi-1, yi) == 0) || (xj == xi-2 && yj == yi+1 &&redOrBlack(xi-1, yi) == 0) ))
@@ -714,7 +766,7 @@ void rulesOfAllKindsOfChessPieces()
     
 
     
-//R（兵）----------------------------------------
+//R（步）----------------------------------------
     else if (array[xi][yi] == R(步))
     {
         if (xi > xj)
@@ -738,7 +790,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }
     
-//B（卒）----------------------------------------
+//B（步）----------------------------------------
     else if (array[xi][yi] == B(步))
     {
         if (xi < xj)
@@ -761,7 +813,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }
 
-//R（相）----------------------------------------
+//R（銀）----------------------------------------
     else if (array[xi][yi] == R(銀))
     {
         if ((redOrBlack(xj, yj) != 1) && ((xj == xi-1 && yj == yi-1 ) || (xj == xi-1 && yj == yi+1 ) || (xj == xi+1 && yj == yi-1 ) || (xj == xi+1 && yj == yi+1 ) || ((yj == yi)&&(xj == xi + 1 ))))
@@ -787,7 +839,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }*/
     
-//B（象）----------------------------------------
+//B（銀）----------------------------------------
     else if (array[xi][yi] == B(銀))
     {
         if ((redOrBlack(xj, yj) != -1) && ((xj == xi-1 && yj == yi-1 ) || (xj == xi-1 && yj == yi+1 ) || (xj == xi+1 && yj == yi-1 ) || (xj == xi+1 && yj == yi+1 ) || ((yj == yi)&&(xj == xi - 1 ))))
@@ -813,7 +865,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }*/
 
-//R（仕）----------------------------------------
+//R（金）----------------------------------------
     else if (array[xi][yi] == R(金))
     {
         if ((redOrBlack(xj, yj) != 1) && ((xj == xi+1 && yj == yi-1 ) || (xj == xi+1 && yj == yi+1 ) || ((xj == xi)&&(yj == yi + 1 || yj == yi - 1))||((yj == yi)&&(xj == xi + 1 || xj == xi - 1))))
@@ -839,7 +891,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }*/
 
-//B（士）----------------------------------------
+//B（金）----------------------------------------
     else if (array[xi][yi] == B(金))
     {
         if ((redOrBlack(xj, yj) != -1) && ((xj == xi-1 && yj == yi-1 ) || (xj == xi-1 && yj == yi+1 ) || ((xj == xi)&&(yj == yi + 1 || yj == yi - 1))||((yj == yi)&&(xj == xi + 1 || xj == xi - 1))))
@@ -865,7 +917,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }*/
 
-//R（帥）----------------------------------------
+//R（王）----------------------------------------
     else if (array[xi][yi] == R(王))
     {
         if ((redOrBlack(xj, yj) != 1) && (((xj == xi)&&(yj == yi + 1 || yj == yi - 1))||((yj == yi)&&(xj == xi + 1 || xj == xi - 1)) || (xj == xi-1 && yj == yi-1 ) || (xj == xi-1 && yj == yi+1 ) || (xj == xi+1 && yj == yi-1 ) || (xj == xi+1 && yj == yi+1 )))
@@ -891,7 +943,7 @@ void rulesOfAllKindsOfChessPieces()
         }
     }*/
 
-//B（將）----------------------------------------
+//B（王）----------------------------------------
     else if (array[xi][yi] == B(王))
     {
         if ((redOrBlack(xj, yj) != -1) && (((xj == xi)&&(yj == yi + 1 || yj == yi - 1))||((yj == yi)&&(xj == xi + 1 || xj == xi - 1)) || (xj == xi-1 && yj == yi-1 ) || (xj == xi-1 && yj == yi+1 ) || (xj == xi+1 && yj == yi-1 ) || (xj == xi+1 && yj == yi+1 )))
